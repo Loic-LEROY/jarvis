@@ -10,7 +10,7 @@ import ollama
 
 def speak(audioString):
     print(audioString)
-    tts = gTTS(text=audioString, lang='en')
+    tts = gTTS(text=audioString, lang='fr')
     tts.save("audio.mp3")
     os.system("mpg321 audio.mp3")
 
@@ -18,7 +18,6 @@ def recordAudio():
     # Record Audio
     r = sr.Recognizer()
     with sr.Microphone() as source:
-        print("Say something!")
         audio = r.listen(source)
 
     # Speech recognition using Google Speech Recognition
@@ -29,7 +28,7 @@ def recordAudio():
         data = r.recognize_google(audio, language="fr-FR")
         print("You said: " + data)
     except sr.UnknownValueError:
-        print("Google Speech Recognition could not understand audio")
+        a=1
     except sr.RequestError as e:
         print("Could not request results from Google Speech Recognition service; {0}".format(e))
 
@@ -40,7 +39,7 @@ def jarvis(data):
         ollama_response = ollama.chat(model='mistral', messages=[
             {
             'role': 'system',
-            'content': 'You are a helpful assistant.',
+            'content': 'You are Jarvis a helpful assistant.',
             },
             {
             'role': 'user',
@@ -55,7 +54,7 @@ def jarvis(data):
 
 # initialization
 time.sleep(2)
-speak("Hi Frank, what can I do for you?")
+speak("Bonjour grand maître Eric, que puis-je faire pour vous ?")
 while 1:
     data = recordAudio()
     jarvis(data)
