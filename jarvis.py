@@ -1,71 +1,61 @@
-import os
-import sounddevice as sd
-import scipy.io.wavfile as wav
-import ollama
+#!/usr/bin/env python3
+# Requires PyAudio and PySpeech.
+
 import speech_recognition as sr
+from time import ctime
+import time
+import os
+from gtts import gTTS
+import ollama
 
-#------------------------- Recording -------------------------#
-def record_audio():
-    # Set the duration of the recording (in seconds)
-    duration = 5
+def speak(audioString):
+    print(audioString)
+    tts = gTTS(text=audioString, lang='en')
+    tts.save("audio.mp3")
+    os.system("mpg321 audio.mp3")
 
-    # Set the sample rate and number of channels for the recording
-    sample_rate = 44100
-    channels = 1
-
-    # Start recording audio
-    audio = sd.rec(int(duration * sample_rate), samplerate=sample_rate, channels=channels)
-
-    # Wait for the keyword "Jarvis" to be detected
-    keyword = "hello"
-    detected = False
-    while not detected:
-        # Check if the keyword is present in the recorded audio
-        if keyword in audio:
-            detected = True
-
-    # Stop recording audio
-    sd.wait()
-
-    # Save the recorded audio to a file
-    audio_file = "output.wav"
-    wav.write(audio_file, sample_rate, audio)
-
-record_audio()
-
-#------------------------- Speech Recognition -------------------------#
-def speech_to_text():
-    # Load the recorded audio file
-    audio_file = "output.wav"
-
-    # Initialize the recognizer
+def recordAudio():
+    # Record Audio
     r = sr.Recognizer()
+    with sr.Microphone() as source:
+        print("Say something!")
+        audio = r.listen(source)
 
-    # Open the audio file
-    with sr.AudioFile(audio_file) as source:
-        # Read the audio data from the file
-        audio_data = r.record(source)
+    # Speech recognition using Google Speech Recognition
+    data = ""
+    try:
+        # Uses the default API key
+        # To use another API key: `r.recognize_google(audio, key="GOOGLE_SPEECH_RECOGoogle Speech Recognition cNITION_API_KEY")`
+        data = r.recognize_google(audio, language="fr-FR")
+        print("You said: " + data)
+    except sr.UnknownValueError:
+        print("Google Speech Recognition could not understand audio")
+    except sr.RequestError as e:
+        print("Could not request results from Google Speech Recognition service; {0}".format(e))
 
-        # Convert speech to text
-        text = r.recognize_google(audio_data)
+    return data
 
-    return text
+def jarvis(data):
+    if "Jarvis" in data:
+        ollama_response = ollama.chat(model='mistral', messages=[
+            {
+            'role': 'system',
+            'content': 'You are a helpful assistant.',
+            },
+            {
+            'role': 'user',
+            'content': data,
+            },
+        ])
+    # Printing out of the generated response
+    try:
+        print(ollama_response['message']['content'])
+    except:
+        print("")
 
-# Call the speech_to_text function
-text = speech_to_text()
-print("Speech to text:", text)
-
-#------------------------- Ollama -------------------------#
-# Setting up the model, enabling streaming responses, and defining the input messages
-ollama_response = ollama.chat(model='mistral', messages=[
-     {
-     'role': 'system',
-     'content': 'You are a helpful assistant.',
-     },
-     {
-     'role': 'user',
-     'content': audio,
-     },
-])
-# Printing out of the generated response
-print(ollama_response['message']['content'])
+# initialization
+time.sleep(2)
+speak("Hi Frank, what can I do for you?")
+while 1:
+    data = recordAudio()
+    jarvis(data)

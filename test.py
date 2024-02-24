@@ -1,61 +1,29 @@
-#!/usr/bin/env python3
-# Requires PyAudio and PySpeech.
-
-import speech_recognition as sr
-from time import ctime
-import time
+from vosk import Model, KaldiRecognizer
 import os
-from gtts import gTTS
-import ollama
+import wave
 
-def speak(audioString):
-    print(audioString)
-    tts = gTTS(text=audioString, lang='en')
-    tts.save("audio.mp3")
-    os.system("mpg321 audio.mp3")
+# Load a model
+model = Model("path_to_model_directory")
 
-def recordAudio():
-    # Record Audio
-    r = sr.Recognizer()
-    with sr.Microphone() as source:
-        print("Say something!")
-        audio = r.listen(source)
+# Create a recognizer
+rec = KaldiRecognizer(model, 16000)
 
-    # Speech recognition using Google Speech Recognition
-    data = ""
-    try:
-        # Uses the default API key
-        # To use another API key: `r.recognize_google(audio, key="GOOGLE_SPEECH_RECOGoogle Speech Recognition cNITION_API_KEY")`
-        data = r.recognize_google(audio)
-        print("You said: " + data)
-    except sr.UnknownValueError:
-        print("Google Speech Recognition could not understand audio")
-    except sr.RequestError as e:
-        print("Could not request results from Google Speech Recognition service; {0}".format(e))
+# Open a wave file
+wf = wave.open("path_to_audio_file.wav", "rb")
 
-    return data
+# Check if the file is opened
+if wf.getnchannels() != 1 or wf.getsampwidth() != 2 or wf.getcomptype() != "NONE":
+    print ("Audio file must be WAV format mono PCM.")
+    exit(1)
 
-def jarvis(data):
-    if "Jarvis" in data:
-        ollama_response = ollama.chat(model='mistral', messages=[
-            {
-            'role': 'system',
-            'content': 'You are a helpful assistant.',
-            },
-            {
-            'role': 'user',
-            'content': data,
-            },
-        ])
-    # Printing out of the generated response
-    try:
-        print(ollama_response['message']['content'])
-    except:
-        print("")
+# Use the recognizer to transcribe the audio
+while True:
+    data = wf.readframes(4000)
+    if len(data) == 0:
+        break
+    if rec.AcceptWaveform(data):
+        print(rec.Result())
+    else:
+        print(rec.PartialResult())
 
-# initialization
-time.sleep(2)
-speak("Hi Frank, what can I do for you?")
-while 1:
-    data = recordAudio()
-    jarvis(data)
+print(rec.FinalResult())
