@@ -17,7 +17,7 @@ def record_audio():
     audio = sd.rec(int(duration * sample_rate), samplerate=sample_rate, channels=channels)
 
     # Wait for the keyword "Jarvis" to be detected
-    keyword = "Jarvis"
+    keyword = "hello"
     detected = False
     while not detected:
         # Check if the keyword is present in the recorded audio
