@@ -1,56 +1,45 @@
-import speech_recognition as sr
-from mistral import NaturalLanguageProcessor
-from text_to_speech import TextToSpeech
+import whisper
+from pocketsphinx import LiveSpeech, get_model_path
+import os
+import sounddevice as sd
+import numpy as np
+import scipy.io.wavfile as wav
 
-# Initialize the voice recognition module
-r = sr.Recognizer()
+model_path = get_model_path()
 
-# Initialize the natural language processing module
-nlp = NaturalLanguageProcessor()
+speech = LiveSpeech(
+    verbose=False,
+    sampling_rate=16000,
+    buffer_size=2048,
+    no_search=False,
+    full_utt=False,
+    hmm=os.path.join(model_path, 'en-us'),
+    lm=os.path.join(model_path, 'en-us.lm.bin'),
+    dic=os.path.join(model_path, 'cmudict-en-us.dict')
+)
 
-# Initialize the text-to-speech module
-tts = TextToSpeech()
+def start_recording():
+    print("Started recording...")
+    fs=44100
+    duration = 5  # seconds
+    myrecording = sd.rec(int(duration * fs), samplerate=fs, channels=2)
+    sd.wait()
 
-# Function to process user commands
-def process_command(command):
-    # Perform natural language processing on the command
-    nlp_result = nlp.process(command)
-    
-    # Extract the intent and entities from the NLP result
-    intent = nlp_result.intent
-    entities = nlp_result.entities
-    
-    # Perform actions based on the intent and entities
-    if intent == "greet":
-        tts.speak("Hello! How can I assist you?")
-    elif intent == "search":
-        if "query" in entities:
-            query = entities["query"]
-            tts.speak(f"Searching for {query}")
-            # Perform search operation here
-        else:
-            tts.speak("What would you like me to search for?")
-    else:
-        tts.speak("I'm sorry, I didn't understand that command.")
+# Save as WAV file
+wav.write('output.wav', fs, myrecording)
 
-# Function to listen for user commands
-def listen():
-    with sr.Microphone() as source:
-        print("Listening...")
-        audio = r.listen(source)
-        
-        try:
-            # Use voice recognition to convert speech to text
-            command = r.recognize_google(audio)
-            print(f"Command: {command}")
-            
-            # Process the user command
-            process_command(command)
-        except sr.UnknownValueError:
-            print("Sorry, I could not understand what you said.")
-        except sr.RequestError as e:
-            print(f"Sorry, an error occurred: {e}")
+for phrase in speech:
+    print(phrase)
+    if "jarvis" in str(phrase):
+        start_recording()
 
-# Main loop to continuously listen for commands
-while True:
-    listen()
+
+file="output.wav"
+
+model = whisper.load_model("tiny")
+result = model.transcribe(file)
+
+curl http://localhost:11434/api/generate -d '{
+  "model": "mistral",
+  "prompt": result["text"]
+}'
