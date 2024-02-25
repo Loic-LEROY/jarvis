@@ -7,6 +7,11 @@ import sounddevice as sd
 import vosk
 import sys
 import ollama
+import pyttsx4
+
+engine = pyttsx4.init('sapi5')
+voices = engine.getProperty('voices')
+engine.setProperty('voice', voices[2].id)
  
 q = queue.Queue()
  
@@ -70,9 +75,9 @@ try:
  
     with sd.RawInputStream(samplerate=args.samplerate, blocksize = 1024, device=args.device, dtype='int16',
                             channels=1, latency='high', callback=callback):
-            print('#' * 80)
+            print('-' * 80)
             print('Press Ctrl+C to stop the recording')
-            print('#' * 80)
+            print('-' * 80)
  
             rec = vosk.KaldiRecognizer(model, args.samplerate)
             while True:
@@ -81,26 +86,27 @@ try:
                 if rec.AcceptWaveform(data):
                     r = eval(rec.Result())
                     t = r["text"]
-                    if t:
-                        print(t+'\n')
+                    if t and "jarvis" in t:
+                        print('\033[92m' + t + '\033[0m\n')
                         if dump_fn is not None and len(t) > 5:
                             dump_fn.write(t+'\n')
-                if "jarvis" in t:
-                    ollama_response = ollama.chat(model='mistral', messages=[
-                        {
-                        'role': 'system',
-                        'content': 'You are Jarvis a helpful assistant.',
-                        },
-                        {
-                        'role': 'user',
-                        'content': t.replace("jarvis", ""),
-                        },
-                    ])
-                    # Printing out of the generated response
-                    try:
-                        print(ollama_response['message']['content']+ '\n')
-                    except:
-                        a=1
+                        ollama_response = ollama.chat(model='mistral', messages=[
+                            {
+                            'role': 'system',
+                            'content': 'You are Jarvis, assistant of Loïc the Tony Stark son. You only answer in english but you do not tell it. Do not ask me if you can help me.',
+                            },
+                            {
+                            'role': 'user',
+                            'content': t.replace("jarvis", ""),
+                            },
+                        ])
+                        # Printing out of the generated response
+                        try:
+                            print(ollama_response['message']['content']+ '\n')
+                            engine.say(ollama_response['message']['content'])
+                            engine.runAndWait()
+                        except:
+                            a=1
  
 except KeyboardInterrupt:
     print('\nDone')
