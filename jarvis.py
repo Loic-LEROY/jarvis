@@ -1,60 +1,109 @@
 #!/usr/bin/env python3
-# Requires PyAudio and PySpeech.
-
-import speech_recognition as sr
-from time import ctime
-import time
+ 
+import argparse
 import os
-from gtts import gTTS
+import queue
+import sounddevice as sd
+import vosk
+import sys
 import ollama
-
-def speak(audioString):
-    print(audioString)
-    tts = gTTS(text=audioString, lang='fr')
-    tts.save("audio.mp3")
-    os.system("mpg321 audio.mp3")
-
-def recordAudio():
-    # Record Audio
-    r = sr.Recognizer()
-    with sr.Microphone() as source:
-        audio = r.listen(source)
-
-    # Speech recognition using Google Speech Recognition
-    data = ""
+ 
+q = queue.Queue()
+ 
+ 
+def int_or_str(text):
+    """Helper function for argument parsing."""
     try:
-        # Uses the default API key
-        # To use another API key: `r.recognize_google(audio, key="GOOGLE_SPEECH_RECOGoogle Speech Recognition cNITION_API_KEY")`
-        data = r.recognize_google(audio, language="fr-FR")
-        print("You said: " + data)
-    except sr.UnknownValueError:
-        a=1
-    except sr.RequestError as e:
-        print("Could not request results from Google Speech Recognition service; {0}".format(e))
-
-    return data
-
-def jarvis(data):
-    if "Jarvis" in data:
-        ollama_response = ollama.chat(model='mistral', messages=[
-            {
-            'role': 'system',
-            'content': 'You are Jarvis a helpful assistant.',
-            },
-            {
-            'role': 'user',
-            'content': data,
-            },
-        ])
-    # Printing out of the generated response
-    try:
-        print(ollama_response['message']['content'])
-    except:
-        print("")
-
-# initialization
-time.sleep(2)
-speak("Bonjour grand maître Eric, que puis-je faire pour vous ?")
-while 1:
-    data = recordAudio()
-    jarvis(data)
+        return int(text)
+    except ValueError:
+        return text
+ 
+def callback(indata, frames, time, status):
+    """This is called (from a separate thread) for each audio block."""
+    if status:
+        print(status, file=sys.stderr)
+    q.put(bytes(indata))
+ 
+parser = argparse.ArgumentParser(add_help=False)
+parser.add_argument(
+    '-l', '--list-devices', action='store_true',
+    help='show list of audio devices and exit')
+args, remaining = parser.parse_known_args()
+if args.list_devices:
+    print(sd.query_devices())
+    parser.exit(0)
+parser = argparse.ArgumentParser(
+    description=__doc__,
+    formatter_class=argparse.RawDescriptionHelpFormatter,
+    parents=[parser])
+parser.add_argument(
+    '-f', '--filename', type=str, metavar='FILENAME',
+    help='text file to store transcriptions')
+parser.add_argument(
+    '-m', '--model', type=str, metavar='MODEL_PATH',
+    help='Path to the model')
+parser.add_argument(
+    '-d', '--device', type=int_or_str,
+    help='input device (numeric ID or substring)')
+parser.add_argument(
+    '-r', '--samplerate', type=int, help='sampling rate')
+args = parser.parse_args(remaining)
+ 
+try:
+    if args.model is None:
+        args.model = "model"
+    if not os.path.exists(args.model):
+        print ("Please download a model for your language from https://alphacephei.com/vosk/models")
+        print ("and unpack as 'model' in the current folder.")
+        parser.exit(0)
+    if args.samplerate is None:
+        device_info = sd.query_devices(args.device, 'input')
+        # soundfile expects an int, sounddevice provides a float:
+        args.samplerate = int(device_info['default_samplerate'])
+ 
+    model = vosk.Model(args.model)
+ 
+    if args.filename:
+        dump_fn = open(args.filename, "a")
+    else:
+        dump_fn = None
+ 
+    with sd.RawInputStream(samplerate=args.samplerate, blocksize = 1024, device=args.device, dtype='int16',
+                            channels=1, latency='high', callback=callback):
+            print('#' * 80)
+            print('Press Ctrl+C to stop the recording')
+            print('#' * 80)
+ 
+            rec = vosk.KaldiRecognizer(model, args.samplerate)
+            while True:
+                t = ""
+                data = q.get()
+                if rec.AcceptWaveform(data):
+                    r = eval(rec.Result())
+                    t = r["text"]
+                    if t:
+                        print(t+'\n')
+                        if dump_fn is not None and len(t) > 5:
+                            dump_fn.write(t+'\n')
+                if "jarvis" in t:
+                    ollama_response = ollama.chat(model='mistral', messages=[
+                        {
+                        'role': 'system',
+                        'content': 'You are Jarvis a helpful assistant.',
+                        },
+                        {
+                        'role': 'user',
+                        'content': t.replace("jarvis", ""),
+                        },
+                    ])
+                    # Printing out of the generated response
+                    try:
+                        print(ollama_response['message']['content']+ '\n')
+                    except:
+                        a=1
+ 
+except KeyboardInterrupt:
+    print('\nDone')
+    parser.exit(0)
+except Exception as e:
+    parser.exit(type(e).__name__ + ': ' + str(e))
