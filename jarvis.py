@@ -11,7 +11,7 @@ import pyttsx4
 
 engine = pyttsx4.init('sapi5')
 voices = engine.getProperty('voices')
-engine.setProperty('voice', voices[2].id)
+engine.setProperty('voice', voices[1].id)
  
 q = queue.Queue()
  
