@@ -1,0 +1,4 @@
+sounddevice==0.4.6
+vosk==0.3.45
+ollama==0.1.7
+pyttsx4==3.0.15
